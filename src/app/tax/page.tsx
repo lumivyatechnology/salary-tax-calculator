@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function Home() {
-  // Redirect to the main feature
+export default function TaxPage() {
   redirect("/tax/income");
 }
