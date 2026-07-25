@@ -50,22 +50,7 @@ export const mainModules: NavModule[] = [
       {
         label: "Income Tax",
         path: "/tax/income",
-        description: "Calculate income tax with bracket breakdown",
-      },
-      {
-        label: "SSF Calculator",
-        path: "/tax/ssf",
-        description: "Social Security Fund contribution calculator",
-      },
-      {
-        label: "SSF Optimizer",
-        path: "/tax/ssf-optimizer",
-        description: "Optimize SSF contribution for tax savings",
-      },
-      {
-        label: "Multi-Income (TDS)",
-        path: "/tax/multi-income",
-        description: "Multiple income sources with TDS reconciliation",
+        description: "Calculate income tax with SSF/EPF, insurance, and female rebate",
       },
     ],
   },
