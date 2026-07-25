@@ -1,7 +1,77 @@
-# salary-tax-calculator
-Repo for Salary Tax Calculator Tool
+# Nepal Salary Tax Calculator
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Web application for calculating Nepal income tax for FY 2083/84 (2026/27). Handles SSF/EPF contributions, insurance deductions, female rebate, and progressive tax brackets.
+
+## Features
+
+- Monthly salary or annual CTC input modes
+- SSF (31%) and EPF (20%) contribution calculations
+- Life and medical insurance deductions
+- 10% female tax rebate
+- Progressive tax bracket breakdown
+- URL-synced state for shareable calculations
+
+## Tech Stack
+
+- Next.js 16.2, React 19, Tailwind CSS 4
+- shadcn/ui (base-ui), Recharts
+- Vitest + Testing Library
+
+## Tax Calculator
+
+### Inputs
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `salaryMode` | `monthly` / `ctc` | Monthly salary or annual CTC mode |
+| `basicSalary` | number | Basic salary amount |
+| `allowance` | number | HRA, DA, other allowances |
+| `bonus` | number | Annual bonus |
+| `gender` | `male` / `female` | Female gets 10% tax rebate |
+| `fundType` | `ssf` / `epf` | Contribution fund type |
+| `lifeInsurance` | number | Annual premium |
+| `medicalInsurance` | number | Annual premium |
+| `citContribution` | number | Citizen Investment Trust contribution |
+
+### Outputs
+
+| Output | Description |
+|--------|-------------|
+| Annual Gross Income | Total income including employer contribution |
+| Total Deductions | SSF/EPF + insurance deductions |
+| Taxable Income | Income after all deductions |
+| Annual Tax | Final tax payable |
+| Effective Rate | Tax as percentage of income |
+| Monthly Take-Home | Net monthly after all deductions |
+| Annual Take-Home | Net annual after tax and deductions |
+
+#### Detailed Breakdowns
+
+- **Monthly Salary**: Gross, SSF/EPF deduction, TDS, bonus portion, net
+- **Fund Contribution**: SSF (31% total) or EPF (20% total) breakdown
+- **Tax Deductions**: Retirement fund, CIT, life insurance, medical insurance
+- **Tax Brackets**: Income and tax per bracket
+
+### Tax Constants (FY 2083/84)
+
+#### Tax Brackets
+
+| Bracket | Rate |
+|---------|------|
+| Up to Rs 10,00,000 | 1% (waived for SSF) |
+| Rs 10,00,001 - 15,00,000 | 10% |
+| Rs 15,00,001 - 25,00,000 | 20% |
+| Rs 25,00,001 - 40,00,000 | 27% |
+| Above Rs 40,00,000 | 29% |
+
+#### Deduction Limits
+
+| Deduction | Max Limit |
+|-----------|-----------|
+| Life Insurance | Rs 40,000 |
+| Medical Insurance | Rs 20,000 |
+| Retirement Fund (1/3 rule) | Rs 5,00,000 |
+| Female Rebate | 10% of tax |
 
 ## Getting Started
 
@@ -18,19 +88,6 @@ bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
 ## Deploy on Vercel
 
