@@ -33,7 +33,6 @@ import {
   type SalaryMode,
   type Gender,
   type FundType,
-  type BasicSalaryMode,
   type TaxResult,
   type SSFBreakdown,
   type EPFBreakdown,
@@ -58,6 +57,12 @@ interface CurrencyInputProps {
   className?: string;
 }
 
+// Format number to Indian/Nepali style: 100000 → "1,00,000"
+function formatIndianNumber(num: number): string {
+  if (num === 0) return "";
+  return new Intl.NumberFormat("en-IN").format(num);
+}
+
 export function CurrencyInput({
   id,
   label,
@@ -68,10 +73,18 @@ export function CurrencyInput({
   className,
 }: CurrencyInputProps) {
   const isOverLimit = maxLimit !== undefined && value > maxLimit;
-  
+  const formattedValue = formatIndianNumber(value);
+
   return (
     <div className={cn("space-y-2", className)}>
-      <Label htmlFor={id}>{label}</Label>
+      <div className="flex items-baseline justify-between gap-2">
+        <Label htmlFor={id}>{label}</Label>
+        {value > 0 && (
+          <span className="text-xs text-muted-foreground">
+            Rs {formattedValue}
+          </span>
+        )}
+      </div>
       <div className="relative">
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
           Rs
@@ -198,66 +211,9 @@ export function FundTypeSelect({ value, onChange, className }: FundTypeSelectPro
       </Select>
       <p className="text-xs text-muted-foreground">
         {value === "ssf" 
-          ? "Social Security Fund: Employee 11% + Employer 20%" 
+          ? "Social Security Fund: Employee 11% + Employer 20%. 1% tax bracket waived." 
           : "Employee Provident Fund: Employee 10% + Employer 10%"}
       </p>
-    </div>
-  );
-}
-
-interface BasicSalaryInputProps {
-  mode: BasicSalaryMode;
-  value: number;
-  onModeChange: (mode: BasicSalaryMode) => void;
-  onValueChange: (value: number) => void;
-  className?: string;
-}
-
-export function BasicSalaryInput({
-  mode,
-  value,
-  onModeChange,
-  onValueChange,
-  className,
-}: BasicSalaryInputProps) {
-  return (
-    <div className={cn("space-y-3", className)}>
-      <div className="flex items-center gap-4">
-        <Label>Basic Salary</Label>
-        <Tabs 
-          value={mode} 
-          onValueChange={(v) => {
-            if (v) {
-              onModeChange(v as BasicSalaryMode);
-              // Reset to default when switching
-              onValueChange(v === "percentage" ? 40 : 0);
-            }
-          }}
-        >
-          <TabsList className="h-7">
-            <TabsTrigger value="percentage" className="text-xs px-2 h-6">% of Salary</TabsTrigger>
-            <TabsTrigger value="amount" className="text-xs px-2 h-6">Fixed Amount</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
-      
-      {mode === "percentage" ? (
-        <PercentageInput
-          id="basicPercent"
-          label=""
-          value={value}
-          onChange={onValueChange}
-          helpText="Common: 40-60% of gross salary"
-        />
-      ) : (
-        <CurrencyInput
-          id="basicAmount"
-          label=""
-          value={value}
-          onChange={onValueChange}
-          helpText="Monthly basic salary amount"
-        />
-      )}
     </div>
   );
 }
@@ -324,7 +280,7 @@ interface TaxBracketTableProps {
 
 export function TaxBracketTable({ result }: TaxBracketTableProps) {
   const relevantBrackets = result.bracketBreakdown.filter(
-    (b) => b.incomeInBracket > 0 || b.taxAmount > 0
+    (b) => b.incomeInBracket > 0 || b.taxAmount > 0 || b.waived
   );
 
   if (relevantBrackets.length === 0) {
@@ -347,19 +303,39 @@ export function TaxBracketTable({ result }: TaxBracketTableProps) {
       </TableHeader>
       <TableBody>
         {relevantBrackets.map((item, index) => (
-          <TableRow key={index}>
-            <TableCell className="font-medium">{item.label}</TableCell>
-            <TableCell className="text-right">
+          <TableRow 
+            key={index}
+            className={item.waived ? "bg-green-50 dark:bg-green-950" : ""}
+          >
+            <TableCell className={cn("font-medium", item.waived && "text-green-700 dark:text-green-300")}>
+              {item.label}
+            </TableCell>
+            <TableCell className={cn("text-right", item.waived && "line-through text-muted-foreground")}>
               {formatPercentage(item.rate, 0)}
             </TableCell>
             <TableCell className="text-right">
               {formatCurrency(item.incomeInBracket)}
             </TableCell>
-            <TableCell className="text-right font-medium">
-              {formatCurrency(item.taxAmount)}
+            <TableCell className={cn("text-right font-medium", item.waived && "text-green-700 dark:text-green-300")}>
+              {item.waived ? (
+                <span>
+                  <span className="line-through text-muted-foreground mr-2">
+                    {formatCurrency(item.incomeInBracket * item.rate)}
+                  </span>
+                  {formatCurrency(0)}
+                </span>
+              ) : (
+                formatCurrency(item.taxAmount)
+              )}
             </TableCell>
           </TableRow>
         ))}
+        {result.ssfWaiverAmount > 0 && (
+          <TableRow className="text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950">
+            <TableCell colSpan={3}>SSF Tax Waiver (1% Exemption)</TableCell>
+            <TableCell className="text-right">-{formatCurrency(result.ssfWaiverAmount)}</TableCell>
+          </TableRow>
+        )}
         <TableRow className="bg-muted/50 font-semibold">
           <TableCell colSpan={3}>Gross Tax</TableCell>
           <TableCell className="text-right">{formatCurrency(result.grossTax)}</TableCell>
@@ -712,5 +688,68 @@ export function ShareButton({ getUrl }: ShareButtonProps) {
         <p>Copy shareable link with current inputs</p>
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+// ============================================================================
+// In-Hand Breakdown Table
+// ============================================================================
+
+interface InHandBreakdownTableProps {
+  result: TaxResult;
+  citContribution: number;
+  lifeInsurance: number;
+  medicalInsurance: number;
+  bonus: number;
+}
+
+export function InHandBreakdownTable({
+  result,
+  citContribution,
+  lifeInsurance,
+  medicalInsurance,
+  bonus,
+}: InHandBreakdownTableProps) {
+  return (
+    <Table>
+      <TableBody>
+        <TableRow>
+          <TableCell>Annual Take-Home</TableCell>
+          <TableCell className="text-right">{formatCurrency(result.annualTakeHome)}</TableCell>
+        </TableRow>
+        {bonus > 0 && (
+          <TableRow>
+            <TableCell>- Annual Bonus (paid yearly)</TableCell>
+            <TableCell className="text-right">{formatCurrency(bonus)}</TableCell>
+          </TableRow>
+        )}
+        <TableRow>
+          <TableCell>- CIT Contribution</TableCell>
+          <TableCell className="text-right">{formatCurrency(citContribution)}</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>- Life Insurance</TableCell>
+          <TableCell className="text-right">{formatCurrency(lifeInsurance)}</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>- Medical Insurance</TableCell>
+          <TableCell className="text-right">{formatCurrency(medicalInsurance)}</TableCell>
+        </TableRow>
+        <TableRow className="bg-green-100 dark:bg-green-900 font-bold border-t">
+          <TableCell>Annual In-Hand</TableCell>
+          <TableCell className="text-right text-green-700 dark:text-green-300">{formatCurrency(result.annualInHand)}</TableCell>
+        </TableRow>
+        <TableRow className="bg-green-100 dark:bg-green-900 font-bold">
+          <TableCell>Monthly In-Hand</TableCell>
+          <TableCell className="text-right text-green-700 dark:text-green-300">{formatCurrency(result.monthlyInHand)}</TableCell>
+        </TableRow>
+        {bonus > 0 && (
+          <TableRow className="bg-amber-50 dark:bg-amber-950">
+            <TableCell className="text-amber-700 dark:text-amber-300">+ Bonus (paid once yearly)</TableCell>
+            <TableCell className="text-right text-amber-700 dark:text-amber-300">{formatCurrency(bonus)}</TableCell>
+          </TableRow>
+        )}
+      </TableBody>
+    </Table>
   );
 }

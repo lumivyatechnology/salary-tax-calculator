@@ -11,13 +11,15 @@
 export type SalaryMode = "monthly" | "ctc";
 export type Gender = "male" | "female";
 export type FundType = "epf" | "ssf";
-export type BasicSalaryMode = "amount" | "percentage";
 
 export interface TaxInput {
   salaryMode: SalaryMode;
-  salaryAmount: number;
-  basicSalaryMode: BasicSalaryMode;
-  basicSalaryValue: number; // Amount if mode=amount, percentage if mode=percentage
+  // Monthly mode: Monthly Basic Salary | CTC mode: Annual CTC
+  basicSalary: number;
+  // Monthly mode: Monthly Allowance (extra) | CTC mode: Annual Allowance (part of CTC)
+  allowance: number;
+  // Annual bonus - Monthly mode: added to annual | CTC mode: part of CTC
+  bonus: number;
   gender: Gender;
   fundType: FundType;
   lifeInsurance: number;
@@ -57,6 +59,7 @@ export interface TaxBracketResult {
   rate: number;
   incomeInBracket: number;
   taxAmount: number;
+  waived: boolean;  // True if bracket waived due to SSF contribution
 }
 
 export interface DeductionBreakdown {
@@ -91,10 +94,18 @@ export interface TaxResult {
   femaleRebate: number;
   finalTax: number;
   effectiveRate: number;
+  ssfWaiverAmount: number;  // Amount saved by 1% bracket waiver for SSF contributors
 
   // Take-home
   annualTakeHome: number;
   monthlyTakeHome: number;
+
+  // In-Hand (after personal deductions)
+  annualInHand: number;
+  monthlyInHand: number;
+
+  // Bonus
+  bonus: number; // Annual bonus amount (for display in breakdown)
 
   // Monthly breakdown
   monthlyTax: number;
@@ -143,18 +154,49 @@ export const EPF_RATES = {
 // ============================================================================
 
 /**
- * Calculate basic salary from input
+ * Calculate annual gross income and basic salary from input
+ * 
+ * Monthly mode:
+ *   - Basic = basicSalary * 12
+ *   - Gross = (basicSalary + allowance) * 12 + bonus
+ * 
+ * CTC mode:
+ *   - Gross = basicSalary (CTC)
+ *   - Basic = CTC - allowance - bonus
  */
-export function calculateBasicSalary(
-  annualSalary: number,
-  mode: BasicSalaryMode,
-  value: number // basic salary percentage or amount
-): number {
-  if (mode === "amount") {
-    return value * 12; // Convert monthly basic to annual
+export function calculateIncomeFromInput(input: TaxInput): {
+  annualGrossIncome: number;
+  annualBasicSalary: number;
+  annualAllowance: number;
+  annualBonus: number;
+} {
+  if (input.salaryMode === "monthly") {
+    // Monthly mode: basic and allowance are monthly, bonus is annual
+    const annualBasicSalary = input.basicSalary * 12;
+    const annualAllowance = input.allowance * 12;
+    const annualBonus = input.bonus;
+    const annualGrossIncome = annualBasicSalary + annualAllowance + annualBonus;
+    
+    return {
+      annualGrossIncome,
+      annualBasicSalary,
+      annualAllowance,
+      annualBonus,
+    };
+  } else {
+    // CTC mode: basicSalary field holds CTC, allowance and bonus are parts of CTC
+    const annualCTC = input.basicSalary;
+    const annualAllowance = input.allowance;
+    const annualBonus = input.bonus;
+    const annualBasicSalary = annualCTC - annualAllowance - annualBonus;
+    
+    return {
+      annualGrossIncome: annualCTC,
+      annualBasicSalary: Math.max(0, annualBasicSalary), // Ensure non-negative
+      annualAllowance,
+      annualBonus,
+    };
   }
-  // Percentage mode
-  return annualSalary * (value / 100);
 }
 
 /**
@@ -198,8 +240,10 @@ export function calculateEPF(annualBasicSalary: number): EPFBreakdown {
 
 /**
  * Calculate tax using progressive brackets
+ * @param taxableIncome - Total taxable income
+ * @param isSSFContributor - If true, first bracket (1%) is waived
  */
-export function calculateBracketTax(taxableIncome: number): TaxBracketResult[] {
+export function calculateBracketTax(taxableIncome: number, isSSFContributor: boolean = false): TaxBracketResult[] {
   const results: TaxBracketResult[] = [];
   let remainingIncome = taxableIncome;
 
@@ -208,28 +252,35 @@ export function calculateBracketTax(taxableIncome: number): TaxBracketResult[] {
     const bracketMax = bracket.max ?? Infinity;
     const bracketSize = bracketMax - bracketMin;
 
+    // Check if this is the first bracket (1%) and SSF contributor gets waiver
+    const isFirstBracket = bracket.min === 0 && bracket.rate === 0.01;
+    const isWaived = isFirstBracket && isSSFContributor;
+
     if (remainingIncome <= 0) {
       results.push({
-        label: bracket.label,
+        label: isWaived ? `${bracket.label} (SSF Waived)` : bracket.label,
         min: bracket.min,
         max: bracket.max,
         rate: bracket.rate,
         incomeInBracket: 0,
         taxAmount: 0,
+        waived: isWaived,
       });
       continue;
     }
 
     const incomeInBracket = Math.min(remainingIncome, bracketSize);
-    const taxAmount = incomeInBracket * bracket.rate;
+    // If waived, tax amount is 0 regardless of income in bracket
+    const taxAmount = isWaived ? 0 : incomeInBracket * bracket.rate;
 
     results.push({
-      label: bracket.label,
+      label: isWaived ? `${bracket.label} (SSF Waived)` : bracket.label,
       min: bracket.min,
       max: bracket.max,
       rate: bracket.rate,
       incomeInBracket: Math.round(incomeInBracket),
       taxAmount: Math.round(taxAmount),
+      waived: isWaived,
     });
 
     remainingIncome -= incomeInBracket;
@@ -243,18 +294,12 @@ export function calculateBracketTax(taxableIncome: number): TaxBracketResult[] {
 // ============================================================================
 
 export function calculateIncomeTax(input: TaxInput): TaxResult {
-  // 1. Calculate annual gross income
-  const annualGrossIncome = input.salaryMode === "monthly"
-    ? input.salaryAmount * 12
-    : input.salaryAmount;
+  // 1. Calculate annual gross income and basic salary based on mode
+  const { annualGrossIncome, annualBasicSalary, annualBonus } = calculateIncomeFromInput(input);
   const monthlyGrossIncome = annualGrossIncome / 12;
 
-  // 2. Calculate basic salary
-  const annualBasicSalary = calculateBasicSalary(
-    annualGrossIncome,
-    input.basicSalaryMode,
-    input.basicSalaryValue
-  );
+  // 2. Basic salary already calculated from input
+  // (No percentage calculation needed anymore)
 
   // 3. Calculate fund contributions
   const ssfBreakdown = input.fundType === "ssf"
@@ -296,9 +341,15 @@ export function calculateIncomeTax(input: TaxInput): TaxResult {
   // 7. Calculate taxable income
   const taxableIncome = Math.max(0, annualGrossIncome - totalDeductions);
 
-  // 8. Calculate tax by brackets
-  const bracketBreakdown = calculateBracketTax(taxableIncome);
+  // 8. Calculate tax by brackets (SSF contributors get 1% bracket waived)
+  const isSSFContributor = input.fundType === "ssf";
+  const bracketBreakdown = calculateBracketTax(taxableIncome, isSSFContributor);
   const grossTax = bracketBreakdown.reduce((sum, b) => sum + b.taxAmount, 0);
+
+  // 8.1 Calculate SSF waiver amount (1% of income in first bracket, max 10L)
+  const ssfWaiverAmount = isSSFContributor
+    ? Math.round(Math.min(taxableIncome, 1000000) * 0.01)
+    : 0;
 
   // 9. Female rebate
   const femaleRebate = input.gender === "female"
@@ -313,6 +364,11 @@ export function calculateIncomeTax(input: TaxInput): TaxResult {
   // Take-home = Gross - Tax - Employee contribution
   const annualTakeHome = annualGrossIncome - finalTax - employeeContribution;
   const monthlyTakeHome = annualTakeHome / 12;
+
+  // 12. In-hand calculation (actual cash after personal deductions)
+  // Bonus is paid yearly, not monthly, so deduct from in-hand
+  const annualInHand = annualTakeHome - input.citContribution - input.lifeInsurance - input.medicalInsurance - annualBonus;
+  const monthlyInHand = annualInHand / 12;
 
   return {
     annualGrossIncome: Math.round(annualGrossIncome),
@@ -334,9 +390,15 @@ export function calculateIncomeTax(input: TaxInput): TaxResult {
     femaleRebate: Math.round(femaleRebate),
     finalTax: Math.round(finalTax),
     effectiveRate,
+    ssfWaiverAmount,
 
     annualTakeHome: Math.round(annualTakeHome),
     monthlyTakeHome: Math.round(monthlyTakeHome),
+
+    annualInHand: Math.round(annualInHand),
+    monthlyInHand: Math.round(monthlyInHand),
+
+    bonus: annualBonus,
 
     monthlyTax: Math.round(finalTax / 12),
     monthlyEmployeeContribution: Math.round(employeeContribution / 12),

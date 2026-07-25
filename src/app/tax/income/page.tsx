@@ -8,7 +8,6 @@ import {
   type SalaryMode,
   type Gender,
   type FundType,
-  type BasicSalaryMode,
   type TaxInput,
   calculateIncomeTax,
   formatCurrency,
@@ -19,7 +18,6 @@ import {
   SalaryModeToggle,
   GenderSelect,
   FundTypeSelect,
-  BasicSalaryInput,
   ResultCard,
   ResultGrid,
   TaxBracketTable,
@@ -28,6 +26,7 @@ import {
   MonthlySummaryTable,
   TaxDisclaimer,
   ShareButton,
+  InHandBreakdownTable,
 } from "./components";
 
 // ============================================================================
@@ -36,9 +35,9 @@ import {
 
 interface IncomeTaxState {
   salaryMode: SalaryMode;
-  salaryAmount: number;
-  basicSalaryMode: BasicSalaryMode;
-  basicSalaryValue: number;
+  basicSalary: number;   // Monthly mode: monthly basic | CTC mode: annual CTC
+  allowance: number;     // Monthly mode: monthly allowance | CTC mode: annual allowance
+  bonus: number;         // Annual bonus
   gender: Gender;
   fundType: FundType;
   lifeInsurance: number;
@@ -48,9 +47,9 @@ interface IncomeTaxState {
 
 const defaultState: IncomeTaxState = {
   salaryMode: "monthly",
-  salaryAmount: 0,
-  basicSalaryMode: "percentage",
-  basicSalaryValue: 40,
+  basicSalary: 0,
+  allowance: 0,
+  bonus: 0,
   gender: "male",
   fundType: "ssf",
   lifeInsurance: 0,
@@ -67,9 +66,9 @@ function IncomeTaxCalculatorContent() {
     defaultValues: defaultState,
     keys: [
       "salaryMode",
-      "salaryAmount",
-      "basicSalaryMode",
-      "basicSalaryValue",
+      "basicSalary",
+      "allowance",
+      "bonus",
       "gender",
       "fundType",
       "lifeInsurance",
@@ -81,14 +80,13 @@ function IncomeTaxCalculatorContent() {
 
   // Calculate tax reactively
   const result = useMemo(() => {
-    if (state.salaryAmount <= 0) return null;
-    if (state.basicSalaryValue <= 0) return null;
+    if (state.basicSalary <= 0) return null;
 
     const input: TaxInput = {
       salaryMode: state.salaryMode,
-      salaryAmount: state.salaryAmount,
-      basicSalaryMode: state.basicSalaryMode,
-      basicSalaryValue: state.basicSalaryValue,
+      basicSalary: state.basicSalary,
+      allowance: state.allowance,
+      bonus: state.bonus,
       gender: state.gender,
       fundType: state.fundType,
       lifeInsurance: state.lifeInsurance,
@@ -130,16 +128,43 @@ function IncomeTaxCalculatorContent() {
         <CardContent className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <CurrencyInput
-              id="salaryAmount"
-              label={state.salaryMode === "monthly" ? "Monthly Gross Salary" : "Annual CTC"}
-              value={state.salaryAmount}
-              onChange={(v) => setField("salaryAmount", v)}
+              id="basicSalary"
+              label={state.salaryMode === "monthly" ? "Monthly Basic Salary" : "Annual CTC"}
+              value={state.basicSalary}
+              onChange={(v) => setField("basicSalary", v)}
               helpText={
                 state.salaryMode === "monthly"
-                  ? "Your monthly salary before deductions"
+                  ? "Your monthly basic salary"
                   : "Total cost to company per year"
               }
             />
+            <CurrencyInput
+              id="allowance"
+              label={state.salaryMode === "monthly" ? "Monthly Allowance" : "Annual Allowance"}
+              value={state.allowance}
+              onChange={(v) => setField("allowance", v)}
+              helpText={
+                state.salaryMode === "monthly"
+                  ? "Extra allowance on top of basic (HRA, DA, etc.)"
+                  : "Part of CTC (HRA, DA, etc.)"
+              }
+            />
+            <CurrencyInput
+              id="bonus"
+              label="Annual Bonus"
+              value={state.bonus}
+              onChange={(v) => setField("bonus", v)}
+              helpText={
+                state.salaryMode === "monthly"
+                  ? "Added to annual income for tax"
+                  : "Part of CTC"
+              }
+            />
+          </div>
+
+          <Separator />
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <GenderSelect
               value={state.gender}
               onChange={(v) => setField("gender", v)}
@@ -149,15 +174,6 @@ function IncomeTaxCalculatorContent() {
               onChange={(v) => setField("fundType", v)}
             />
           </div>
-
-          <Separator />
-
-          <BasicSalaryInput
-            mode={state.basicSalaryMode}
-            value={state.basicSalaryValue}
-            onModeChange={(v) => setField("basicSalaryMode", v)}
-            onValueChange={(v) => setField("basicSalaryValue", v)}
-          />
 
           <Separator />
 
@@ -222,7 +238,7 @@ function IncomeTaxCalculatorContent() {
           </ResultGrid>
 
           {/* Take-Home Summary */}
-          <ResultGrid className="sm:grid-cols-2">
+          <ResultGrid className="sm:grid-cols-2 lg:grid-cols-4">
             <ResultCard
               title="Monthly Take-Home"
               value={result.monthlyTakeHome}
@@ -235,7 +251,38 @@ function IncomeTaxCalculatorContent() {
               variant="success"
               description="Net annual income"
             />
+            <ResultCard
+              title="Monthly In-Hand"
+              value={result.monthlyInHand}
+              variant="success"
+              description="After CIT & insurance"
+            />
+            <ResultCard
+              title="Annual In-Hand"
+              value={result.annualInHand}
+              variant="success"
+              description="Actual cash received"
+            />
           </ResultGrid>
+
+          {/* In-Hand Breakdown */}
+          <Card>
+            <CardHeader>
+              <CardTitle>In-Hand Breakdown</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <InHandBreakdownTable
+                result={result}
+                citContribution={state.citContribution}
+                lifeInsurance={state.lifeInsurance}
+                medicalInsurance={state.medicalInsurance}
+                bonus={state.bonus}
+              />
+              <p className="mt-4 text-xs text-muted-foreground">
+                In-Hand is actual cash received after paying CIT and insurance premiums.
+              </p>
+            </CardContent>
+          </Card>
 
           {/* Monthly Summary */}
           <Card>
