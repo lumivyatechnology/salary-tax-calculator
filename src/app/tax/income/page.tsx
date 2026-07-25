@@ -2,6 +2,12 @@
 
 import { useMemo, Suspense } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
 import { Separator } from "@/components/ui/separator";
 import { useUrlState } from "@/hooks/useUrlState";
 import {
@@ -26,7 +32,6 @@ import {
   MonthlySummaryTable,
   TaxDisclaimer,
   ShareButton,
-  InHandBreakdownTable,
 } from "./components";
 
 // ============================================================================
@@ -215,7 +220,7 @@ function IncomeTaxCalculatorContent() {
           <ResultGrid>
             <ResultCard
               title="Annual Gross Income"
-              value={result.annualGrossIncome}
+              value={result.annualGrossIncome + (result.employerContribution ?? 0)}
               description={`Basic: ${formatCurrency(result.annualBasicSalary)}`}
             />
             <ResultCard
@@ -238,97 +243,69 @@ function IncomeTaxCalculatorContent() {
           </ResultGrid>
 
           {/* Take-Home Summary */}
-          <ResultGrid className="sm:grid-cols-2 lg:grid-cols-4">
+          <ResultGrid className="sm:grid-cols-2">
             <ResultCard
               title="Monthly Take-Home"
-              value={result.monthlyTakeHome}
+              value={result.monthlyTakeHome - Math.round(state.bonus / 12)}
               variant="success"
-              description="After tax and fund deduction"
+              description="After bonus adjustment"
             />
             <ResultCard
               title="Annual Take-Home"
               value={result.annualTakeHome}
               variant="success"
-              description="Net annual income"
-            />
-            <ResultCard
-              title="Monthly In-Hand"
-              value={result.monthlyInHand}
-              variant="success"
-              description="After CIT & insurance"
-            />
-            <ResultCard
-              title="Annual In-Hand"
-              value={result.annualInHand}
-              variant="success"
-              description="Actual cash received"
+              description="Actual cash received monthly"
             />
           </ResultGrid>
 
-          {/* In-Hand Breakdown */}
-          <Card>
-            <CardHeader>
-              <CardTitle>In-Hand Breakdown</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <InHandBreakdownTable
-                result={result}
-                citContribution={state.citContribution}
-                lifeInsurance={state.lifeInsurance}
-                medicalInsurance={state.medicalInsurance}
-                bonus={state.bonus}
-              />
-              <p className="mt-4 text-xs text-muted-foreground">
-                In-Hand is actual cash received after paying CIT and insurance premiums.
-              </p>
-            </CardContent>
-          </Card>
+          {/* Detailed Breakdowns Accordions */}
+          <div className="space-y-4">
+            {/* Monthly Summary */}
+            <Accordion className="rounded-lg border bg-card">
+              <AccordionItem value="monthly" className="border-none">
+                <AccordionTrigger className="px-4 py-3 font-semibold">Monthly Salary Breakdown</AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <MonthlySummaryTable result={result} bonus={state.bonus} />
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
 
-          {/* Monthly Summary */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Monthly Salary Breakdown</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <MonthlySummaryTable result={result} />
-            </CardContent>
-          </Card>
+            {/* Fund Contribution Details */}
+            <Accordion className="rounded-lg border bg-card">
+              <AccordionItem value="fund" className="border-none">
+                <AccordionTrigger className="px-4 py-3 font-semibold">
+                  {result.fundType === "ssf" ? "SSF Contribution Breakdown" : "EPF Contribution Breakdown"}
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <FundContributionTable result={result} />
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
 
-          {/* Fund Contribution Details */}
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {result.fundType === "ssf" ? "SSF Contribution Breakdown" : "EPF Contribution Breakdown"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <FundContributionTable result={result} />
-            </CardContent>
-          </Card>
+            {/* Deduction Breakdown */}
+            <Accordion className="rounded-lg border bg-card">
+              <AccordionItem value="deduction" className="border-none">
+                <AccordionTrigger className="px-4 py-3 font-semibold">Tax Deductions Applied</AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <DeductionBreakdownTable result={result} citContribution={state.citContribution} />
+                  <p className="mt-4 text-xs text-muted-foreground">
+                    <strong>1/3 Rule:</strong> Total retirement fund deduction (SSF/EPF + CIT) is capped at
+                    the lower of 1/3 of annual income or Rs 5,00,000.
+                  </p>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
 
-          {/* Deduction Breakdown */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Tax Deductions Applied</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <DeductionBreakdownTable result={result} citContribution={state.citContribution} />
-              <p className="mt-4 text-xs text-muted-foreground">
-                <strong>1/3 Rule:</strong> Total retirement fund deduction (SSF/EPF + CIT) is capped at
-                the lower of 1/3 of annual income or Rs 5,00,000.
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Tax Bracket Breakdown */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Tax Calculation by Bracket</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <TaxBracketTable result={result} />
-            </CardContent>
-          </Card>
+            {/* Tax Bracket Breakdown */}
+            <Accordion className="rounded-lg border bg-card">
+              <AccordionItem value="bracket" className="border-none">
+                <AccordionTrigger className="px-4 py-3 font-semibold">Tax Calculation by Bracket</AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <TaxBracketTable result={result} />
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </div>
         </>
       )}
 

@@ -31,13 +31,13 @@ export interface SSFBreakdown {
   // Employee (11%)
   employeePF: number;         // 10%
   employeeAdditional: number; // 1%
-  employeeTotal: number;      // 11%
+  employeeContribution: number;      // 11%
 
   // Employer (20%)
   employerPF: number;         // 10%
   employerGratuity: number;   // 8.33%
   employerAdditional: number; // 1.67%
-  employerTotal: number;      // 20%
+  employerContribution: number;      // 20%
 
   // SST
   sst: number;                // 1%
@@ -79,6 +79,7 @@ export interface TaxResult {
   fundType: FundType;
   ssfBreakdown: SSFBreakdown | null;
   epfBreakdown: EPFBreakdown | null;
+  employerContribution: number | null;
 
   // Deductions
   oneThirdLimit: number;
@@ -176,7 +177,7 @@ export function calculateIncomeFromInput(input: TaxInput): {
     const annualAllowance = input.allowance * 12;
     const annualBonus = input.bonus;
     const annualGrossIncome = annualBasicSalary + annualAllowance + annualBonus;
-    
+
     return {
       annualGrossIncome,
       annualBasicSalary,
@@ -189,7 +190,7 @@ export function calculateIncomeFromInput(input: TaxInput): {
     const annualAllowance = input.allowance;
     const annualBonus = input.bonus;
     const annualBasicSalary = annualCTC - annualAllowance - annualBonus;
-    
+
     return {
       annualGrossIncome: annualCTC,
       annualBasicSalary: Math.max(0, annualBasicSalary), // Ensure non-negative
@@ -205,23 +206,23 @@ export function calculateIncomeFromInput(input: TaxInput): {
 export function calculateSSF(annualBasicSalary: number): SSFBreakdown {
   const employeePF = annualBasicSalary * SSF_RATES.EMPLOYEE_PF;
   const employeeAdditional = annualBasicSalary * SSF_RATES.EMPLOYEE_ADDITIONAL;
-  const employeeTotal = annualBasicSalary * SSF_RATES.EMPLOYEE_TOTAL;
+  const employeeContribution = annualBasicSalary * SSF_RATES.EMPLOYEE_TOTAL;
 
   const employerPF = annualBasicSalary * SSF_RATES.EMPLOYER_PF;
   const employerGratuity = annualBasicSalary * SSF_RATES.EMPLOYER_GRATUITY;
   const employerAdditional = annualBasicSalary * SSF_RATES.EMPLOYER_ADDITIONAL;
-  const employerTotal = annualBasicSalary * SSF_RATES.EMPLOYER_TOTAL;
+  const employerContribution = annualBasicSalary * SSF_RATES.EMPLOYER_TOTAL;
 
   const sst = annualBasicSalary * SSF_RATES.SST;
 
   return {
     employeePF: Math.round(employeePF),
     employeeAdditional: Math.round(employeeAdditional),
-    employeeTotal: Math.round(employeeTotal),
+    employeeContribution: Math.round(employeeContribution),
     employerPF: Math.round(employerPF),
     employerGratuity: Math.round(employerGratuity),
     employerAdditional: Math.round(employerAdditional),
-    employerTotal: Math.round(employerTotal),
+    employerContribution: Math.round(employerContribution),
     sst: Math.round(sst),
     totalContribution: Math.round(annualBasicSalary * SSF_RATES.TOTAL),
   };
@@ -311,8 +312,11 @@ export function calculateIncomeTax(input: TaxInput): TaxResult {
 
   // Employee contribution for deduction calculation
   const employeeContribution = input.fundType === "ssf"
-    ? ssfBreakdown!.employeeTotal
+    ? ssfBreakdown!.employeeContribution
     : epfBreakdown!.employeeContribution;
+  const employerContribution = input.fundType === "ssf"
+    ? ssfBreakdown!.employerContribution
+    : epfBreakdown!.employerContribution;
 
   // 4. Calculate 1/3 rule limit
   const oneThirdLimit = Math.min(
@@ -321,7 +325,7 @@ export function calculateIncomeTax(input: TaxInput): TaxResult {
   );
 
   // Total retirement fund (employee SSF/EPF + CIT)
-  const totalRetirementContribution = employeeContribution + input.citContribution;
+  const totalRetirementContribution = employeeContribution + input.citContribution + employerContribution;
   const retirementFundDeduction = Math.min(totalRetirementContribution, oneThirdLimit);
 
   // 5. Calculate insurance deductions
@@ -378,6 +382,7 @@ export function calculateIncomeTax(input: TaxInput): TaxResult {
     fundType: input.fundType,
     ssfBreakdown,
     epfBreakdown,
+    employerContribution,
 
     oneThirdLimit: Math.round(oneThirdLimit),
     maxRetirementDeduction: LIMITS.ONE_THIRD_RULE_MAX,

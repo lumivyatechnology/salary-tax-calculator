@@ -179,11 +179,13 @@ export function GenderSelect({ value, onChange, className }: GenderSelectProps) 
       <Label>Gender</Label>
       <Select value={value} onValueChange={(v) => v && onChange(v as Gender)}>
         <SelectTrigger>
-          <SelectValue />
+          <SelectValue>
+            {value === "female" ? "Female (Single)" : "Male"}
+          </SelectValue>
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="min-w-[220px]">
           <SelectItem value="male">Male</SelectItem>
-          <SelectItem value="female">Female (10% rebate)</SelectItem>
+          <SelectItem value="female">Female (Single, 10% rebate)</SelectItem>
         </SelectContent>
       </Select>
     </div>
@@ -210,8 +212,8 @@ export function FundTypeSelect({ value, onChange, className }: FundTypeSelectPro
         </SelectContent>
       </Select>
       <p className="text-xs text-muted-foreground">
-        {value === "ssf" 
-          ? "Social Security Fund: Employee 11% + Employer 20%. 1% tax bracket waived." 
+        {value === "ssf"
+          ? "Social Security Fund: Employee 11% + Employer 20%. 1% tax bracket waived."
           : "Employee Provident Fund: Employee 10% + Employer 10%"}
       </p>
     </div>
@@ -303,7 +305,7 @@ export function TaxBracketTable({ result }: TaxBracketTableProps) {
       </TableHeader>
       <TableBody>
         {relevantBrackets.map((item, index) => (
-          <TableRow 
+          <TableRow
             key={index}
             className={item.waived ? "bg-green-50 dark:bg-green-950" : ""}
           >
@@ -362,7 +364,7 @@ interface DeductionBreakdownTableProps {
 
 export function DeductionBreakdownTable({ result, citContribution }: DeductionBreakdownTableProps) {
   const employeeContribution = result.fundType === "ssf"
-    ? result.ssfBreakdown!.employeeTotal
+    ? result.ssfBreakdown!.employeeContribution
     : result.epfBreakdown!.employeeContribution;
 
   return (
@@ -466,10 +468,10 @@ function SSFContributionTable({ breakdown, basicSalary }: SSFContributionTablePr
         <TableRow className="font-medium">
           <TableCell className="pl-6">Subtotal (Employee)</TableCell>
           <TableCell className="text-right">{formatPercentage(SSF_RATES.EMPLOYEE_TOTAL, 0)}</TableCell>
-          <TableCell className="text-right">{formatCurrency(breakdown.employeeTotal)}</TableCell>
-          <TableCell className="text-right">{formatCurrency(breakdown.employeeTotal / 12)}</TableCell>
+          <TableCell className="text-right">{formatCurrency(breakdown.employeeContribution)}</TableCell>
+          <TableCell className="text-right">{formatCurrency(breakdown.employeeContribution / 12)}</TableCell>
         </TableRow>
-        
+
         <TableRow className="bg-green-50 dark:bg-green-950">
           <TableCell colSpan={4} className="font-semibold text-green-800 dark:text-green-200">
             Employer Contribution ({formatPercentage(SSF_RATES.EMPLOYER_TOTAL, 0)})
@@ -496,17 +498,17 @@ function SSFContributionTable({ breakdown, basicSalary }: SSFContributionTablePr
         <TableRow className="font-medium">
           <TableCell className="pl-6">Subtotal (Employer)</TableCell>
           <TableCell className="text-right">{formatPercentage(SSF_RATES.EMPLOYER_TOTAL, 0)}</TableCell>
-          <TableCell className="text-right">{formatCurrency(breakdown.employerTotal)}</TableCell>
-          <TableCell className="text-right">{formatCurrency(breakdown.employerTotal / 12)}</TableCell>
+          <TableCell className="text-right">{formatCurrency(breakdown.employerContribution)}</TableCell>
+          <TableCell className="text-right">{formatCurrency(breakdown.employerContribution / 12)}</TableCell>
         </TableRow>
-        
+
         <TableRow>
           <TableCell>SST (Social Security Tax)</TableCell>
           <TableCell className="text-right">{formatPercentage(SSF_RATES.SST, 0)}</TableCell>
           <TableCell className="text-right">{formatCurrency(breakdown.sst)}</TableCell>
           <TableCell className="text-right">{formatCurrency(breakdown.sst / 12)}</TableCell>
         </TableRow>
-        
+
         <TableRow className="bg-muted/50 font-bold">
           <TableCell>Total SSF Contribution</TableCell>
           <TableCell className="text-right">{formatPercentage(SSF_RATES.TOTAL, 0)}</TableCell>
@@ -560,9 +562,13 @@ function EPFContributionTable({ breakdown, basicSalary }: EPFContributionTablePr
 
 interface MonthlySummaryTableProps {
   result: TaxResult;
+  bonus: number;
 }
 
-export function MonthlySummaryTable({ result }: MonthlySummaryTableProps) {
+export function MonthlySummaryTable({ result, bonus }: MonthlySummaryTableProps) {
+  const monthlyBonus = Math.round(bonus / 12);
+  const netTakeHome = result.monthlyTakeHome - monthlyBonus;
+
   return (
     <Table>
       <TableHeader>
@@ -590,12 +596,28 @@ export function MonthlySummaryTable({ result }: MonthlySummaryTableProps) {
             -{formatCurrency(result.monthlyTax)}
           </TableCell>
         </TableRow>
+        {bonus > 0 && (
+          <TableRow>
+            <TableCell>Bonus (yearly ÷ 12)</TableCell>
+            <TableCell className="text-right text-red-600">
+              -{formatCurrency(monthlyBonus)}
+            </TableCell>
+          </TableRow>
+        )}
         <TableRow className="bg-green-100 dark:bg-green-900 font-bold">
           <TableCell>Net Take-Home</TableCell>
           <TableCell className="text-right text-green-700 dark:text-green-300">
-            {formatCurrency(result.monthlyTakeHome)}
+            {formatCurrency(netTakeHome)}
           </TableCell>
         </TableRow>
+        {bonus > 0 && (
+          <TableRow className="bg-amber-50 dark:bg-amber-950">
+            <TableCell className="text-amber-700 dark:text-amber-300">+ Bonus (paid once yearly)</TableCell>
+            <TableCell className="text-right text-amber-700 dark:text-amber-300">
+              {formatCurrency(bonus)}
+            </TableCell>
+          </TableRow>
+        )}
       </TableBody>
     </Table>
   );
@@ -688,68 +710,5 @@ export function ShareButton({ getUrl }: ShareButtonProps) {
         <p>Copy shareable link with current inputs</p>
       </TooltipContent>
     </Tooltip>
-  );
-}
-
-// ============================================================================
-// In-Hand Breakdown Table
-// ============================================================================
-
-interface InHandBreakdownTableProps {
-  result: TaxResult;
-  citContribution: number;
-  lifeInsurance: number;
-  medicalInsurance: number;
-  bonus: number;
-}
-
-export function InHandBreakdownTable({
-  result,
-  citContribution,
-  lifeInsurance,
-  medicalInsurance,
-  bonus,
-}: InHandBreakdownTableProps) {
-  return (
-    <Table>
-      <TableBody>
-        <TableRow>
-          <TableCell>Annual Take-Home</TableCell>
-          <TableCell className="text-right">{formatCurrency(result.annualTakeHome)}</TableCell>
-        </TableRow>
-        {bonus > 0 && (
-          <TableRow>
-            <TableCell>- Annual Bonus (paid yearly)</TableCell>
-            <TableCell className="text-right">{formatCurrency(bonus)}</TableCell>
-          </TableRow>
-        )}
-        <TableRow>
-          <TableCell>- CIT Contribution</TableCell>
-          <TableCell className="text-right">{formatCurrency(citContribution)}</TableCell>
-        </TableRow>
-        <TableRow>
-          <TableCell>- Life Insurance</TableCell>
-          <TableCell className="text-right">{formatCurrency(lifeInsurance)}</TableCell>
-        </TableRow>
-        <TableRow>
-          <TableCell>- Medical Insurance</TableCell>
-          <TableCell className="text-right">{formatCurrency(medicalInsurance)}</TableCell>
-        </TableRow>
-        <TableRow className="bg-green-100 dark:bg-green-900 font-bold border-t">
-          <TableCell>Annual In-Hand</TableCell>
-          <TableCell className="text-right text-green-700 dark:text-green-300">{formatCurrency(result.annualInHand)}</TableCell>
-        </TableRow>
-        <TableRow className="bg-green-100 dark:bg-green-900 font-bold">
-          <TableCell>Monthly In-Hand</TableCell>
-          <TableCell className="text-right text-green-700 dark:text-green-300">{formatCurrency(result.monthlyInHand)}</TableCell>
-        </TableRow>
-        {bonus > 0 && (
-          <TableRow className="bg-amber-50 dark:bg-amber-950">
-            <TableCell className="text-amber-700 dark:text-amber-300">+ Bonus (paid once yearly)</TableCell>
-            <TableCell className="text-right text-amber-700 dark:text-amber-300">{formatCurrency(bonus)}</TableCell>
-          </TableRow>
-        )}
-      </TableBody>
-    </Table>
   );
 }
