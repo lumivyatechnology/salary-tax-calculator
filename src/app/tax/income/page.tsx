@@ -2,93 +2,128 @@
 
 import { useMemo, Suspense } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
 import { Separator } from "@/components/ui/separator";
 import { useUrlState } from "@/hooks/useUrlState";
 import {
+  type SalaryMode,
+  type Gender,
+  type FundType,
+  type TaxInput,
   calculateIncomeTax,
-  DEFAULT_FISCAL_YEAR,
-  type MaritalStatus,
-} from "@/lib/tax";
+  formatCurrency,
+  formatPercentage,
+} from "./calculations";
 import {
-  TaxDisclaimer,
-  TaxBreakdownTable,
+  CurrencyInput,
+  SalaryModeToggle,
+  GenderSelect,
+  FundTypeSelect,
   ResultCard,
   ResultGrid,
+  TaxBracketTable,
+  DeductionBreakdownTable,
+  FundContributionTable,
+  MonthlySummaryTable,
+  TaxDisclaimer,
   ShareButton,
-  CurrencyInput,
-  MaritalStatusSelect,
-  FiscalYearSelect,
-} from "@/modules/tax/components";
+} from "./components";
+
+// ============================================================================
+// State Types
+// ============================================================================
 
 interface IncomeTaxState {
-  grossIncome: number;
-  maritalStatus: MaritalStatus;
-  ssfContribution: number;
-  remoteAreaAllowance: number;
-  medicalAllowance: number;
-  festivalAllowance: number;
-  otherDeductions: number;
-  fiscalYear: string;
+  salaryMode: SalaryMode;
+  basicSalary: number;   // Monthly mode: monthly basic | CTC mode: annual CTC
+  allowance: number;     // Monthly mode: monthly allowance | CTC mode: annual allowance
+  bonus: number;         // Annual bonus
+  gender: Gender;
+  fundType: FundType;
+  lifeInsurance: number;
+  medicalInsurance: number;
+  citContribution: number;
 }
 
 const defaultState: IncomeTaxState = {
-  grossIncome: 0,
-  maritalStatus: "unmarried",
-  ssfContribution: 0,
-  remoteAreaAllowance: 0,
-  medicalAllowance: 0,
-  festivalAllowance: 0,
-  otherDeductions: 0,
-  fiscalYear: DEFAULT_FISCAL_YEAR,
+  salaryMode: "monthly",
+  basicSalary: 0,
+  allowance: 0,
+  bonus: 0,
+  gender: "male",
+  fundType: "ssf",
+  lifeInsurance: 0,
+  medicalInsurance: 0,
+  citContribution: 0,
 };
+
+// ============================================================================
+// Main Component
+// ============================================================================
 
 function IncomeTaxCalculatorContent() {
   const { state, setField, getShareableUrl } = useUrlState<IncomeTaxState>({
     defaultValues: defaultState,
     keys: [
-      "grossIncome",
-      "maritalStatus",
-      "ssfContribution",
-      "remoteAreaAllowance",
-      "medicalAllowance",
-      "festivalAllowance",
-      "otherDeductions",
-      "fiscalYear",
+      "salaryMode",
+      "basicSalary",
+      "allowance",
+      "bonus",
+      "gender",
+      "fundType",
+      "lifeInsurance",
+      "medicalInsurance",
+      "citContribution",
     ],
     debounceMs: 300,
   });
 
   // Calculate tax reactively
   const result = useMemo(() => {
-    if (state.grossIncome <= 0) return null;
+    if (state.basicSalary <= 0) return null;
 
-    return calculateIncomeTax(
-      {
-        grossIncome: state.grossIncome,
-        maritalStatus: state.maritalStatus,
-        ssfContribution: state.ssfContribution,
-        remoteAreaAllowance: state.remoteAreaAllowance,
-        medicalAllowance: state.medicalAllowance,
-        festivalAllowance: state.festivalAllowance,
-        otherDeductions: state.otherDeductions,
-      },
-      state.fiscalYear
-    );
+    const input: TaxInput = {
+      salaryMode: state.salaryMode,
+      basicSalary: state.basicSalary,
+      allowance: state.allowance,
+      bonus: state.bonus,
+      gender: state.gender,
+      fundType: state.fundType,
+      lifeInsurance: state.lifeInsurance,
+      medicalInsurance: state.medicalInsurance,
+      citContribution: state.citContribution,
+    };
+
+    return calculateIncomeTax(input);
   }, [state]);
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Income Tax Calculator</h1>
+          <h1 className="text-2xl font-bold">Nepal Income Tax Calculator</h1>
           <p className="text-muted-foreground">
-            Calculate Nepal income tax with bracket breakdown
+            Calculate income tax with SSF/EPF deductions, insurance benefits, and female rebate
           </p>
         </div>
         <ShareButton getUrl={getShareableUrl} />
       </div>
 
       <TaxDisclaimer />
+
+      {/* Salary Mode Toggle */}
+      <div className="flex justify-center">
+        <SalaryModeToggle
+          value={state.salaryMode}
+          onChange={(v) => setField("salaryMode", v)}
+        />
+      </div>
 
       {/* Input Form */}
       <Card>
@@ -98,61 +133,80 @@ function IncomeTaxCalculatorContent() {
         <CardContent className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <CurrencyInput
-              id="grossIncome"
-              label="Annual Gross Income"
-              value={state.grossIncome}
-              onChange={(v) => setField("grossIncome", v)}
-              helpText="Total annual salary before deductions"
+              id="basicSalary"
+              label={state.salaryMode === "monthly" ? "Monthly Basic Salary" : "Annual CTC"}
+              value={state.basicSalary}
+              onChange={(v) => setField("basicSalary", v)}
+              helpText={
+                state.salaryMode === "monthly"
+                  ? "Your monthly basic salary"
+                  : "Total cost to company per year"
+              }
             />
-            <MaritalStatusSelect
-              value={state.maritalStatus}
-              onChange={(v) => setField("maritalStatus", v)}
+            <CurrencyInput
+              id="allowance"
+              label={state.salaryMode === "monthly" ? "Monthly Allowance" : "Annual Allowance"}
+              value={state.allowance}
+              onChange={(v) => setField("allowance", v)}
+              helpText={
+                state.salaryMode === "monthly"
+                  ? "Extra allowance on top of basic (HRA, DA, etc.)"
+                  : "Part of CTC (HRA, DA, etc.)"
+              }
             />
-            <FiscalYearSelect
-              value={state.fiscalYear}
-              onChange={(v) => setField("fiscalYear", v)}
+            <CurrencyInput
+              id="bonus"
+              label="Annual Bonus"
+              value={state.bonus}
+              onChange={(v) => setField("bonus", v)}
+              helpText={
+                state.salaryMode === "monthly"
+                  ? "Added to annual income for tax"
+                  : "Part of CTC"
+              }
+            />
+          </div>
+
+          <Separator />
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <GenderSelect
+              value={state.gender}
+              onChange={(v) => setField("gender", v)}
+            />
+            <FundTypeSelect
+              value={state.fundType}
+              onChange={(v) => setField("fundType", v)}
             />
           </div>
 
           <Separator />
 
           <div>
-            <h3 className="mb-4 text-sm font-medium">Deductions & Allowances</h3>
+            <h3 className="mb-4 text-sm font-medium">Insurance & Additional Deductions</h3>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <CurrencyInput
-                id="ssfContribution"
-                label="SSF Contribution (Annual)"
-                value={state.ssfContribution}
-                onChange={(v) => setField("ssfContribution", v)}
-                helpText="Employee's annual SSF contribution"
+                id="lifeInsurance"
+                label="Life Insurance Premium (Annual)"
+                value={state.lifeInsurance}
+                onChange={(v) => setField("lifeInsurance", v)}
+                maxLimit={40000}
+                helpText="Max deduction: Rs 40,000/year"
               />
               <CurrencyInput
-                id="remoteAreaAllowance"
-                label="Remote Area Allowance"
-                value={state.remoteAreaAllowance}
-                onChange={(v) => setField("remoteAreaAllowance", v)}
-                helpText="50% is tax-exempt"
+                id="medicalInsurance"
+                label="Medical Insurance Premium (Annual)"
+                value={state.medicalInsurance}
+                onChange={(v) => setField("medicalInsurance", v)}
+                maxLimit={20000}
+                helpText="Max deduction: Rs 20,000/year"
               />
               <CurrencyInput
-                id="medicalAllowance"
-                label="Medical Allowance"
-                value={state.medicalAllowance}
-                onChange={(v) => setField("medicalAllowance", v)}
-                helpText="Up to Rs 75,000 exempt"
-              />
-              <CurrencyInput
-                id="festivalAllowance"
-                label="Festival Allowance"
-                value={state.festivalAllowance}
-                onChange={(v) => setField("festivalAllowance", v)}
-                helpText="1 month salary equivalent exempt"
-              />
-              <CurrencyInput
-                id="otherDeductions"
-                label="Other Deductions"
-                value={state.otherDeductions}
-                onChange={(v) => setField("otherDeductions", v)}
-                helpText="Insurance, donations, etc."
+                id="citContribution"
+                label="CIT Contribution (Annual)"
+                value={state.citContribution}
+                onChange={(v) => setField("citContribution", v)}
+                helpText="Citizen Investment Trust (optional)"
               />
             </div>
           </div>
@@ -162,62 +216,105 @@ function IncomeTaxCalculatorContent() {
       {/* Results */}
       {result && (
         <>
+          {/* Summary Cards */}
           <ResultGrid>
             <ResultCard
-              title="Gross Income"
-              value={result.grossIncome}
-              description="Total annual income"
+              title="Annual Gross Income"
+              value={result.annualGrossIncome + (result.employerContribution ?? 0)}
+              description={`Basic: ${formatCurrency(result.annualBasicSalary)}`}
             />
             <ResultCard
               title="Total Deductions"
-              value={result.totalDeductions}
-              description="SSF + allowances"
+              value={result.deductions.totalDeductions}
+              description="SSF/EPF + Insurance"
             />
             <ResultCard
               title="Taxable Income"
               value={result.taxableIncome}
               variant="highlight"
-              description="After deductions"
+              description="After all deductions"
             />
             <ResultCard
-              title="Total Tax"
-              value={result.totalTax}
+              title="Annual Tax"
+              value={result.finalTax}
               variant="warning"
-              description={`Effective rate: ${(result.effectiveRate * 100).toFixed(2)}%`}
+              description={`Effective rate: ${formatPercentage(result.effectiveRate)}`}
             />
           </ResultGrid>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Tax Breakdown by Bracket</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <TaxBreakdownTable breakdown={result.bracketBreakdown} />
-            </CardContent>
-          </Card>
-
+          {/* Take-Home Summary */}
           <ResultGrid className="sm:grid-cols-2">
             <ResultCard
-              title="Annual Take-Home"
-              value={result.takeHome}
+              title="Monthly Take-Home"
+              value={result.monthlyTakeHome - Math.round(state.bonus / 12)}
               variant="success"
-              description="After tax and SSF"
+              description="After bonus adjustment"
             />
             <ResultCard
-              title="Monthly Take-Home"
-              value={result.takeHome / 12}
+              title="Annual Take-Home"
+              value={result.annualTakeHome}
               variant="success"
-              description="Estimated monthly"
+              description="Actual cash received monthly"
             />
           </ResultGrid>
+
+          {/* Detailed Breakdowns Accordions */}
+          <div className="space-y-4">
+            {/* Monthly Summary */}
+            <Accordion className="rounded-lg border bg-card">
+              <AccordionItem value="monthly" className="border-none">
+                <AccordionTrigger className="px-4 py-3 font-semibold">Monthly Salary Breakdown</AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <MonthlySummaryTable result={result} bonus={state.bonus} />
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+
+            {/* Fund Contribution Details */}
+            <Accordion className="rounded-lg border bg-card">
+              <AccordionItem value="fund" className="border-none">
+                <AccordionTrigger className="px-4 py-3 font-semibold">
+                  {result.fundType === "ssf" ? "SSF Contribution Breakdown" : "EPF Contribution Breakdown"}
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <FundContributionTable result={result} />
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+
+            {/* Deduction Breakdown */}
+            <Accordion className="rounded-lg border bg-card">
+              <AccordionItem value="deduction" className="border-none">
+                <AccordionTrigger className="px-4 py-3 font-semibold">Tax Deductions Applied</AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <DeductionBreakdownTable result={result} citContribution={state.citContribution} />
+                  <p className="mt-4 text-xs text-muted-foreground">
+                    <strong>1/3 Rule:</strong> Total retirement fund deduction (SSF/EPF + CIT) is capped at
+                    the lower of 1/3 of annual income or Rs 5,00,000.
+                  </p>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+
+            {/* Tax Bracket Breakdown */}
+            <Accordion className="rounded-lg border bg-card">
+              <AccordionItem value="bracket" className="border-none">
+                <AccordionTrigger className="px-4 py-3 font-semibold">Tax Calculation by Bracket</AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <TaxBracketTable result={result} />
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </div>
         </>
       )}
 
-      {!result && state.grossIncome <= 0 && (
+      {/* Empty State */}
+      {!result && (
         <Card>
           <CardContent className="py-12 text-center">
             <p className="text-muted-foreground">
-              Enter your income details above to see tax calculation
+              Enter your salary details above to calculate income tax
             </p>
           </CardContent>
         </Card>
@@ -226,9 +323,13 @@ function IncomeTaxCalculatorContent() {
   );
 }
 
+// ============================================================================
+// Page Export
+// ============================================================================
+
 export default function IncomeTaxPage() {
   return (
-    <Suspense fallback={<div className="p-6">Loading...</div>}>
+    <Suspense fallback={<div className="p-6">Loading calculator...</div>}>
       <IncomeTaxCalculatorContent />
     </Suspense>
   );

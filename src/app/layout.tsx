@@ -4,6 +4,7 @@ import "./globals.css";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileDrawer } from "@/components/layout/MobileDrawer";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -48,6 +49,7 @@ export default function RootLayout({
               <main className="flex-1 overflow-y-auto">{children}</main>
             </div>
           </div>
+          <Toaster position="top-center" richColors />
         </TooltipProvider>
       </body>
     </html>
