@@ -568,6 +568,7 @@ interface MonthlySummaryTableProps {
 export function MonthlySummaryTable({ result, bonus }: MonthlySummaryTableProps) {
   const monthlyBonus = Math.round(bonus / 12);
   const netTakeHome = result.monthlyTakeHome - monthlyBonus;
+  const grossIncome = result.monthlyGrossIncome - monthlyBonus;
 
   return (
     <Table>
@@ -580,7 +581,7 @@ export function MonthlySummaryTable({ result, bonus }: MonthlySummaryTableProps)
       <TableBody>
         <TableRow>
           <TableCell>Gross Salary</TableCell>
-          <TableCell className="text-right">{formatCurrency(result.monthlyGrossIncome)}</TableCell>
+          <TableCell className="text-right">{formatCurrency(grossIncome)}</TableCell>
         </TableRow>
         <TableRow>
           <TableCell>
@@ -596,11 +597,11 @@ export function MonthlySummaryTable({ result, bonus }: MonthlySummaryTableProps)
             -{formatCurrency(result.monthlyTax)}
           </TableCell>
         </TableRow>
-        {bonus > 0 && (
+        {result.monthlyCIT > 0 && (
           <TableRow>
-            <TableCell>Bonus (yearly ÷ 12)</TableCell>
+            <TableCell>CIT Contribution (monthly)</TableCell>
             <TableCell className="text-right text-red-600">
-              -{formatCurrency(monthlyBonus)}
+              -{formatCurrency(result.monthlyCIT)}
             </TableCell>
           </TableRow>
         )}
