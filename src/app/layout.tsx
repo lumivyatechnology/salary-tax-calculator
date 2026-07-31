@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
+import { ADSENSE_CLIENT_ID } from "@/lib/constants";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileDrawer } from "@/components/layout/MobileDrawer";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -52,6 +54,12 @@ export default function RootLayout({
           <Toaster position="top-center" richColors />
         </TooltipProvider>
       </body>
+      <Script
+        async
+        src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`}
+        crossOrigin="anonymous"
+        strategy="afterInteractive"
+      />
     </html>
   );
 }
