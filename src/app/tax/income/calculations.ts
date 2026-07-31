@@ -111,6 +111,7 @@ export interface TaxResult {
   // Monthly breakdown
   monthlyTax: number;
   monthlyEmployeeContribution: number;
+  monthlyCIT: number;
 }
 
 // ============================================================================
@@ -365,13 +366,13 @@ export function calculateIncomeTax(input: TaxInput): TaxResult {
   const effectiveRate = annualGrossIncome > 0 ? finalTax / annualGrossIncome : 0;
 
   // 11. Take-home calculation
-  // Take-home = Gross - Tax - Employee contribution
-  const annualTakeHome = annualGrossIncome - finalTax - employeeContribution;
+  // Take-home = Gross - Tax - Employee contribution - CIT (all deducted at source)
+  const annualTakeHome = annualGrossIncome - finalTax - employeeContribution - input.citContribution;
   const monthlyTakeHome = annualTakeHome / 12;
 
   // 12. In-hand calculation (actual cash after personal deductions)
   // Bonus is paid yearly, not monthly, so deduct from in-hand
-  const annualInHand = annualTakeHome - input.citContribution - input.lifeInsurance - input.medicalInsurance - annualBonus;
+  const annualInHand = annualTakeHome - input.lifeInsurance - input.medicalInsurance - annualBonus;
   const monthlyInHand = annualInHand / 12;
 
   return {
@@ -407,6 +408,7 @@ export function calculateIncomeTax(input: TaxInput): TaxResult {
 
     monthlyTax: Math.round(finalTax / 12),
     monthlyEmployeeContribution: Math.round(employeeContribution / 12),
+    monthlyCIT: Math.round(input.citContribution / 12),
   };
 }
 

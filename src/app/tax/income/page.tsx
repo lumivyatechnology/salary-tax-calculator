@@ -248,13 +248,13 @@ function IncomeTaxCalculatorContent() {
               title="Monthly Take-Home"
               value={result.monthlyTakeHome - Math.round(state.bonus / 12)}
               variant="success"
-              description="After bonus adjustment"
+              description="Actual cash received monthly"
             />
             <ResultCard
               title="Annual Take-Home"
               value={result.annualTakeHome}
               variant="success"
-              description="Actual cash received monthly"
+              description="Actual cash received annually"
             />
           </ResultGrid>
 
