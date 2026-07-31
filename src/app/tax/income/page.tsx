@@ -33,6 +33,8 @@ import {
   TaxDisclaimer,
   ShareButton,
 } from "./components";
+import { AdUnit } from "@/components/ads/AdUnit";
+import { ADSENSE_SIDEBAR_SLOT } from "@/lib/constants";
 
 // ============================================================================
 // State Types
@@ -103,7 +105,10 @@ function IncomeTaxCalculatorContent() {
   }, [state]);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto flex max-w-6xl flex-col gap-6 lg:flex-row">
+      {/* Main Content */}
+      <div className="min-w-0 flex-1 space-y-6">
+      <AdUnit />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -319,6 +324,15 @@ function IncomeTaxCalculatorContent() {
           </CardContent>
         </Card>
       )}
+
+      </div>
+
+      {/* Sidebar Ad - right on desktop, bottom on mobile */}
+      <aside className="w-full shrink-0 lg:w-[300px]">
+        <div className="sticky top-6">
+          <AdUnit adSlot={ADSENSE_SIDEBAR_SLOT} adFormat="autorelaxed" />
+        </div>
+      </aside>
     </div>
   );
 }
