@@ -35,12 +35,12 @@ export default function RootLayout({
     >
       <body className="min-h-full">
         <TooltipProvider>
-          <div className="flex h-screen">
+          <div className="relative flex min-h-screen">
             {/* Desktop Sidebar */}
             <Sidebar className="hidden md:flex" />
 
             {/* Main Content */}
-            <div className="flex flex-1 flex-col overflow-hidden">
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden md:ml-64">
               {/* Mobile Header */}
               <header className="flex h-14 items-center gap-4 border-b px-4 md:hidden">
                 <MobileDrawer />
